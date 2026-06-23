@@ -225,6 +225,28 @@ tbody td input:focus { outline: 1px solid #1a7f6e; border-radius: 1px; backgroun
 </style>
 </head>
 <body>
+<script>
+// Global touch-to-mouse translator for iPad/mobile support
+(function() {
+  function touchToMouse(e) {
+    var touch = e.touches[0] || e.changedTouches[0];
+    var types = { touchstart:'mousedown', touchmove:'mousemove', touchend:'mouseup' };
+    var type = types[e.type];
+    if (!type) return;
+    var mouseEvent = new MouseEvent(type, {
+      bubbles: true, cancelable: true,
+      view: window,
+      clientX: touch.clientX, clientY: touch.clientY,
+      screenX: touch.screenX, screenY: touch.screenY
+    });
+    e.preventDefault();
+    touch.target.dispatchEvent(mouseEvent);
+  }
+  document.addEventListener('touchstart',  touchToMouse, { passive: false });
+  document.addEventListener('touchmove',   touchToMouse, { passive: false });
+  document.addEventListener('touchend',    touchToMouse, { passive: false });
+})();
+</script>
 <div class="save-indicator" id="save-indicator-hidden" style="display:none"></div>
 
 <!-- APP LAYOUT -->
@@ -1506,5 +1528,33 @@ document.addEventListener("DOMContentLoaded",function(){
 
 </div><!-- /main-content -->
 </div><!-- /app-layout -->
+<script>
+// Touch support: convert touch events to mouse events for iPad/mobile
+function addTouchSupport(el) {
+  if (el._touchAdded) return; el._touchAdded = true;
+  function getTouch(e) { return e.touches[0] || e.changedTouches[0]; }
+  function toMouse(type, touch) {
+    return new MouseEvent(type, { bubbles:true, cancelable:true, clientX:touch.clientX, clientY:touch.clientY });
+  }
+  el.addEventListener('touchstart',  function(e){ e.preventDefault(); el.dispatchEvent(toMouse('mousedown', getTouch(e))); }, {passive:false});
+  el.addEventListener('touchmove',   function(e){ e.preventDefault(); document.dispatchEvent(toMouse('mousemove', getTouch(e))); }, {passive:false});
+  el.addEventListener('touchend',    function(e){ e.preventDefault(); document.dispatchEvent(toMouse('mouseup',   getTouch(e))); }, {passive:false});
+}
+document.addEventListener('DOMContentLoaded', function() {
+  var canvas = document.getElementById('dt-canvas');
+  if (!canvas) return;
+  addTouchSupport(canvas);
+  new MutationObserver(function(mutations) {
+    mutations.forEach(function(m) {
+      m.addedNodes.forEach(function(node) {
+        if (node.nodeType === 1) {
+          addTouchSupport(node);
+          node.querySelectorAll('*').forEach(addTouchSupport);
+        }
+      });
+    });
+  }).observe(canvas, { childList:true, subtree:true });
+});
+</script>
 </body>
 </html>
