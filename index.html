@@ -172,6 +172,20 @@ tbody td input:focus { outline: 1px solid #1a7f6e; border-radius: 1px; backgroun
 .prod-count { font-size:11px; color:#888; }
 @media print { #products-tab, #drawing-tab, .tab-nav { display:none !important; } #estimate-tab { display:block !important; } }
 
+/* ── MOBILE SIDEBAR (hamburger) ───────────────────────────────────────────── */
+.hamburger-btn { display:none; position:fixed; top:10px; left:10px; z-index:9999; background:#1a7f6e; border:none; border-radius:6px; padding:8px 10px; cursor:pointer; }
+.hamburger-btn span { display:block; width:22px; height:2px; background:#fff; margin:4px 0; border-radius:2px; }
+.sidebar-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.4); z-index:8888; }
+
+@media (max-width: 768px) {
+  .hamburger-btn { display:block; }
+  .sidebar { position:fixed; top:0; left:-220px; height:100vh; z-index:9000; transition:left 0.25s ease; width:180px !important; min-width:180px !important; }
+  .sidebar.open { left:0; }
+  .sidebar-overlay.open { display:block; }
+  .main-content { margin-left:0 !important; }
+  .app-layout { padding-top:48px; }
+}
+
 /* ── Drawing Tab Styles ── */
 #drawing-tab.active { display:flex !important; }
 #dw-topbar{background:#1a3a5c;color:#fff;padding:6px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0}
@@ -225,39 +239,23 @@ tbody td input:focus { outline: 1px solid #1a7f6e; border-radius: 1px; backgroun
 </style>
 </head>
 <body>
-<script>
-// Global touch-to-mouse translator for iPad/mobile support
-(function() {
-  function touchToMouse(e) {
-    var touch = e.touches[0] || e.changedTouches[0];
-    var types = { touchstart:'mousedown', touchmove:'mousemove', touchend:'mouseup' };
-    var type = types[e.type];
-    if (!type) return;
-    var mouseEvent = new MouseEvent(type, {
-      bubbles: true, cancelable: true,
-      view: window,
-      clientX: touch.clientX, clientY: touch.clientY,
-      screenX: touch.screenX, screenY: touch.screenY
-    });
-    e.preventDefault();
-    touch.target.dispatchEvent(mouseEvent);
-  }
-  document.addEventListener('touchstart',  touchToMouse, { passive: false });
-  document.addEventListener('touchmove',   touchToMouse, { passive: false });
-  document.addEventListener('touchend',    touchToMouse, { passive: false });
-})();
-</script>
 <div class="save-indicator" id="save-indicator-hidden" style="display:none"></div>
 
 <!-- APP LAYOUT -->
 <div class="app-layout">
 
+<!-- HAMBURGER BUTTON (mobile only) -->
+<button class="hamburger-btn" id="hamburger-btn" onclick="toggleSidebar()">
+  <span></span><span></span><span></span>
+</button>
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
 <!-- SIDEBAR -->
-<div class="sidebar">
+<div class="sidebar" id="main-sidebar">
   <div class="sidebar-logo"><span>🛁 Bath Fitter</span></div>
-  <button class="tab-btn active" onclick="switchTab('estimate')"><span class="icon">📋</span> Estimate</button>
-  <button class="tab-btn" onclick="switchTab('products')"><span class="icon">📦</span> Products</button>
-  <button class="tab-btn" onclick="switchTab('design')"><span class="icon">🛁</span> Design</button>
+  <button class="tab-btn active" onclick="switchTab('estimate');closeSidebar()"><span class="icon">📋</span> Estimate</button>
+  <button class="tab-btn" onclick="switchTab('products');closeSidebar()"><span class="icon">📦</span> Products</button>
+  <button class="tab-btn" onclick="switchTab('design');closeSidebar()"><span class="icon">🛁</span> Design</button>
 
 </div>
 
@@ -1529,28 +1527,66 @@ document.addEventListener("DOMContentLoaded",function(){
 </div><!-- /main-content -->
 </div><!-- /app-layout -->
 <script>
-// Touch support: convert touch events to mouse events for iPad/mobile
-function addTouchSupport(el) {
-  if (el._touchAdded) return; el._touchAdded = true;
-  function getTouch(e) { return e.touches[0] || e.changedTouches[0]; }
-  function toMouse(type, touch) {
-    return new MouseEvent(type, { bubbles:true, cancelable:true, clientX:touch.clientX, clientY:touch.clientY });
-  }
-  el.addEventListener('touchstart',  function(e){ e.preventDefault(); el.dispatchEvent(toMouse('mousedown', getTouch(e))); }, {passive:false});
-  el.addEventListener('touchmove',   function(e){ e.preventDefault(); document.dispatchEvent(toMouse('mousemove', getTouch(e))); }, {passive:false});
-  el.addEventListener('touchend',    function(e){ e.preventDefault(); document.dispatchEvent(toMouse('mouseup',   getTouch(e))); }, {passive:false});
+// ── Hamburger sidebar (mobile) ──────────────────────────────────────────────
+function toggleSidebar() {
+  document.getElementById('main-sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('open');
 }
+function closeSidebar() {
+  document.getElementById('main-sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('open');
+}
+
+// ── Touch drag for Design canvas only ──────────────────────────────────────
+// Only fires when touch is INSIDE dt-canvas; won't block other taps
 document.addEventListener('DOMContentLoaded', function() {
   var canvas = document.getElementById('dt-canvas');
   if (!canvas) return;
-  addTouchSupport(canvas);
-  new MutationObserver(function(mutations) {
-    mutations.forEach(function(m) {
+
+  function getT(e) { return e.touches[0] || e.changedTouches[0]; }
+  function fire(target, type, t) {
+    target.dispatchEvent(new MouseEvent(type, {
+      bubbles:true, cancelable:true,
+      clientX:t.clientX, clientY:t.clientY
+    }));
+  }
+
+  canvas.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    var t = getT(e);
+    fire(document.elementFromPoint(t.clientX, t.clientY) || canvas, 'mousedown', t);
+  }, { passive:false });
+
+  canvas.addEventListener('touchmove', function(e) {
+    e.preventDefault();
+    fire(document, 'mousemove', getT(e));
+  }, { passive:false });
+
+  canvas.addEventListener('touchend', function(e) {
+    e.preventDefault();
+    fire(document, 'mouseup', getT(e));
+  }, { passive:false });
+
+  // Also add to dynamically added items inside canvas
+  new MutationObserver(function(muts) {
+    muts.forEach(function(m) {
       m.addedNodes.forEach(function(node) {
-        if (node.nodeType === 1) {
-          addTouchSupport(node);
-          node.querySelectorAll('*').forEach(addTouchSupport);
-        }
+        if (node.nodeType !== 1) return;
+        [node].concat(Array.from(node.querySelectorAll('*'))).forEach(function(el) {
+          if (el._tc) return; el._tc = true;
+          el.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            fire(el, 'mousedown', getT(e));
+          }, { passive:false });
+          el.addEventListener('touchmove', function(e) {
+            e.preventDefault();
+            fire(document, 'mousemove', getT(e));
+          }, { passive:false });
+          el.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            fire(document, 'mouseup', getT(e));
+          }, { passive:false });
+        });
       });
     });
   }).observe(canvas, { childList:true, subtree:true });
