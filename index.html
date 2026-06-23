@@ -1538,58 +1538,47 @@ function closeSidebar() {
 }
 
 // ── Touch drag for Design canvas only ──────────────────────────────────────
-// Only fires when touch is INSIDE dt-canvas; won't block other taps
 document.addEventListener('DOMContentLoaded', function() {
   var canvas = document.getElementById('dt-canvas');
   if (!canvas) return;
 
+  var dragging = false;
+
   function getT(e) { return e.touches[0] || e.changedTouches[0]; }
   function fire(target, type, t) {
     target.dispatchEvent(new MouseEvent(type, {
-      bubbles:true, cancelable:true,
-      clientX:t.clientX, clientY:t.clientY
+      bubbles: true, cancelable: true,
+      clientX: t.clientX, clientY: t.clientY
     }));
   }
 
-  canvas.addEventListener('touchstart', function(e) {
+  // touchstart: only activate if inside canvas
+  document.addEventListener('touchstart', function(e) {
+    var t = getT(e);
+    var el = document.elementFromPoint(t.clientX, t.clientY);
+    if (!el) return;
+    // check if touch is inside canvas
+    if (!canvas.contains(el)) return;
+    dragging = true;
+    e.preventDefault();
+    fire(el, 'mousedown', t);
+  }, { passive: false });
+
+  // touchmove: fire on document so drag works anywhere
+  document.addEventListener('touchmove', function(e) {
+    if (!dragging) return;
     e.preventDefault();
     var t = getT(e);
-    fire(document.elementFromPoint(t.clientX, t.clientY) || canvas, 'mousedown', t);
-  }, { passive:false });
+    fire(document, 'mousemove', t);
+  }, { passive: false });
 
-  canvas.addEventListener('touchmove', function(e) {
+  // touchend: stop drag
+  document.addEventListener('touchend', function(e) {
+    if (!dragging) return;
     e.preventDefault();
-    fire(document, 'mousemove', getT(e));
-  }, { passive:false });
-
-  canvas.addEventListener('touchend', function(e) {
-    e.preventDefault();
+    dragging = false;
     fire(document, 'mouseup', getT(e));
-  }, { passive:false });
-
-  // Also add to dynamically added items inside canvas
-  new MutationObserver(function(muts) {
-    muts.forEach(function(m) {
-      m.addedNodes.forEach(function(node) {
-        if (node.nodeType !== 1) return;
-        [node].concat(Array.from(node.querySelectorAll('*'))).forEach(function(el) {
-          if (el._tc) return; el._tc = true;
-          el.addEventListener('touchstart', function(e) {
-            e.preventDefault();
-            fire(el, 'mousedown', getT(e));
-          }, { passive:false });
-          el.addEventListener('touchmove', function(e) {
-            e.preventDefault();
-            fire(document, 'mousemove', getT(e));
-          }, { passive:false });
-          el.addEventListener('touchend', function(e) {
-            e.preventDefault();
-            fire(document, 'mouseup', getT(e));
-          }, { passive:false });
-        });
-      });
-    });
-  }).observe(canvas, { childList:true, subtree:true });
+  }, { passive: false });
 });
 </script>
 </body>
